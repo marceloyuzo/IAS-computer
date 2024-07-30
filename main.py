@@ -1,8 +1,8 @@
-from classes import IAS, RAM
+from classes import IAS
 
 ram_file = 'ram.txt'
-memoryRam = RAM(ram_file)
-teste = IAS(memoryRam)
+teste = IAS(ram_file)
+
 
 
 # memoryRam.write_ram('0x00', 2)
