@@ -3,6 +3,7 @@ class IAS:
         # Inicializando os registradores'
         self.running = True
         self.last_instruction_was_left = False
+        self.jumped = False
         self.MAR = None
         self.IR = None
         self.IBR = None
@@ -55,25 +56,29 @@ class IAS:
 
     def read_data(self, address):
         self.MAR = address
-        self.MBR = self.memory[int(self.MAR, 16)].split(' ')[0]
+        self.MBR = self.memory[int(self.MAR, 16)]
+        if(isinstance(self.MBR, tuple)):
+          return self.MBR
+        else:
+          self.MBR = self.MBR.split(' ')[0]
 
         return self.MBR
 
-    def write_data(self, address: str, data: str, field: int | None):
+    def write_data(self, address, data, field):
         self.MAR = address
         self.MBR = data
 
         # verificando o tipo de escrita, caso o valor seja uma tupla, então é uma escrita de instrução
         if (isinstance(self.memory[int(self.MAR, 16)], tuple)):
             if (field == 0):
-                newLine = (data, self.memory[int(self.MAR, 16)][1])
+                newLine = (self.MBR, self.memory[int(self.MAR, 16)][1])
 
             if (field == 1):
-                newLine = (self.memory[int(self.MAR, 16)][0], data)
+                newLine = (self.memory[int(self.MAR, 16)][0], self.MBR)
 
             self.memory[int(self.MAR, 16)] = newLine
         else:
-            self.memory[int(self.MAR, 16)] = data + ' ' + self.MAR
+            self.memory[int(self.MAR, 16)] = self.MBR + '' + self.MAR
             # talvez chamar uma funcao memoryRam.write_ram para atualizar o arquivo txt, depende se o prof quer
 
     def cycle_fetch_instruction_left(self):
@@ -82,7 +87,7 @@ class IAS:
 
         self.IBR = self.MBR[1]
 
-        divider = self.MBR[0].split('0')
+        divider = self.MBR[0].split(',')
         self.IR = divider[0]
         self.MAR = divider[1] if len(divider) > 1 else None
 
@@ -92,11 +97,13 @@ class IAS:
 
     def cycle_fetch_instruction_right(self):
         # DESCOBRIR COMO SABER SE A ULTIMA INSTRUÇÃO EXECUTADA FOI A ESQUERDA
-        if (self.IR == ("JUMP M(X 0:19)" or "JUMP M(X 20:39)" or "JUMP+ M(X 0:19)" or "JUMP+ M(X 20:39)")):
+        print(self.IR)
+
+        if (self.IR in ["JUMP M(X 0:19)", "JUMP M(X 20:39)", "JUMP+ M(X 0:19)", "JUMP+ M(X 20:39)"]):
             self.MAR = self.PC
             self.MBR = self.memory[int(self.MAR, 16)]
 
-            divider = self.MBR[0].split('0')
+            divider = self.MBR[0].split(',')
             self.IR = divider[0]
             self.MAR = divider[1] if len(divider) > 1 else None
 
@@ -104,8 +111,9 @@ class IAS:
             newPC = int(self.PC, 16) + 1
             self.PC = f"0x{newPC:02X}"
         else:
-            self.IR = self.IBR.split(',')[0]
-            self.MAR = self.IBR.split(',')[1]
+            divider = self.IBR.split(',')
+            self.IR = divider[0]
+            self.MAR = divider[1] if len(divider) > 1 else None
 
     def cycle_exec_instruction(self):
         # Se a instrução for de busca
@@ -184,7 +192,7 @@ class IAS:
         return
 
     def stor_mx(self):
-        self.write_data(self.MAR, self.AC, None)
+        self.write_data(self.MAR, str(self.AC), None)
         return
 
     def load_mq(self):
@@ -207,18 +215,24 @@ class IAS:
         return
 
     def add_mx_absolute(self):
+        self.AC = int(self.AC) + abs(int(self.read_data(self.MAR)))
         return
 
     def sub_mx(self):
+        self.AC = int(self.AC) - int(self.read_data(self.MAR))
         return
 
     def sub_mx_absolute(self):
+        self.AC = int(self.AC) - abs(int(self.read_data(self.MAR)))
         return
 
     def mul_mx(self):
+        self.AC = int(self.MQ) * int(self.read_data(self.MAR))
         return
 
     def div_mx(self):
+        self.MQ = int(self.AC) / int(self.read_data(self.MAR))
+        self.AC = int(self.AC) % int(self.read_data(self.MAR))
         return
 
     def rsh(self):
@@ -230,16 +244,35 @@ class IAS:
     # INSTRUÇÕES DE SALTO
 
     def jump_m_left(self):
-        return
+        if (isinstance(self.memory[int(self.MAR, 16)], tuple)):  
+            self.PC = self.MAR
+            self.jumped = True
+        else:
+            self.jumped = False
+
 
     def jump_m_right(self):
-        return
+        if (isinstance(self.memory[int(self.MAR, 16)], tuple)):  
+            self.PC = self.MAR
+            self.jumped = True
+        else:
+            self.jumped = False
 
     def jump_plus_m_left(self):
-        return
+        if (self.AC >= 0):
+            self.jump_m_left()
+            self.jumped = True
+        else: 
+            self.jumped = False
 
     def jump_plus_m_right(self):
-        return
+        if (int(self.AC) >= 0):
+            self.jump_m_right()
+            self.jumped = True
+
+        else: 
+            self.jumped = False
+
 
     # INSTRUÇÕES DE MODIFICAÇÃO DE ENDEREÇO
 
@@ -271,22 +304,40 @@ class IAS:
         print('------------------------------------------')
 
     def run(self):
+        print("Inicialização do IAS: ")
+        self.display_registers()
+        self.display_ram()
         while self.running:
-            if self.last_instruction_was_left:
-                self.cycle_fetch_instruction_right()
+            input("Pressione Enter para continuar para a próxima instrução...")
+
+            if self.jumped:
+                if self.IR in ["JUMP+ M(X 0:19)", "JUMP M(X 0:19)"]:
+                    self.cycle_fetch_instruction_left()
+                    self.last_instruction_was_left = True
+                    
+                else:
+                    self.cycle_fetch_instruction_right()
+                    self.last_instruction_was_left = False
+
                 print("REGISTRADORES APOS CICLO DE BUSCA")
                 self.display_registers()
                 self.cycle_exec_instruction()
                 print("REGISTRADORES APOS CICLO DE EXECUCAO")
                 self.display_registers()
-                # Atualiza o estado após executar a busca à direita
-                self.last_instruction_was_left = False
+
             else:
-                self.cycle_fetch_instruction_left()
+                if self.last_instruction_was_left:
+                    self.cycle_fetch_instruction_right()
+                    self.last_instruction_was_left = False
+                else:
+                    self.cycle_fetch_instruction_left()
+                    self.last_instruction_was_left = True
+
                 print("REGISTRADORES APOS CICLO DE BUSCA")
                 self.display_registers()
                 self.cycle_exec_instruction()
                 print("REGISTRADORES APOS CICLO DE EXECUCAO")
                 self.display_registers()
-                # Atualiza o estado após executar a busca à esquerda
-                self.last_instruction_was_left = True
+
+
+        return
