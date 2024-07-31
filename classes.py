@@ -97,7 +97,11 @@ class IAS:
 
     def cycle_fetch_instruction_right(self):
         # DESCOBRIR COMO SABER SE A ULTIMA INSTRUÇÃO EXECUTADA FOI A ESQUERDA
-        if (self.IR in ["JUMP M(X 0:19)", "JUMP M(X 20:39)", "JUMP+ M(X 0:19)", "JUMP+ M(X 20:39)"]):
+        if (self.last_instruction_was_left):
+            divider = self.IBR.split(',')
+            self.IR = divider[0]
+            self.MAR = divider[1] if len(divider) > 1 else None
+        else:
             self.MAR = self.PC
             self.MBR = self.memory[int(self.MAR, 16)]
 
@@ -108,10 +112,6 @@ class IAS:
             # INCREMENTO DO PC
             newPC = int(self.PC, 16) + 1
             self.PC = f"0x{newPC:02X}"
-        else:
-            divider = self.IBR.split(',')
-            self.IR = divider[0]
-            self.MAR = divider[1] if len(divider) > 1 else None
 
     def cycle_exec_instruction(self):
         # Se a instrução for de busca
@@ -257,20 +257,16 @@ class IAS:
             self.jumped = False
 
     def jump_plus_m_left(self):
-        if (self.AC >= 0):
+        if (int(self.AC) >= 0):
             self.jump_m_left()
-            self.jumped = True
-        else: 
+        else:
             self.jumped = False
 
     def jump_plus_m_right(self):
         if (int(self.AC) >= 0):
             self.jump_m_right()
-            self.jumped = True
-
-        else: 
+        else:
             self.jumped = False
-
 
     # INSTRUÇÕES DE MODIFICAÇÃO DE ENDEREÇO
 
@@ -307,10 +303,9 @@ class IAS:
         self.display_ram()
         while self.running:
             input("Pressione Enter para continuar para a próxima instrução...")
-
             if self.jumped:
+                print("TEste")
                 if self.IR in ["JUMP+ M(X 0:19)", "JUMP M(X 0:19)"]:
-                    print("TESTE")
                     self.cycle_fetch_instruction_left()
                     self.last_instruction_was_left = True
                     
@@ -324,7 +319,7 @@ class IAS:
                 self.cycle_exec_instruction()
                 print("REGISTRADORES APOS CICLO DE EXECUCAO")
                 self.display_registers()
-
+                self.jumped = False
             else:
                 if self.last_instruction_was_left:
                     self.cycle_fetch_instruction_right()

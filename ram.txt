@@ -1,8 +1,23 @@
-4 0x00
-1 0x01
-1 0x02
-1 0x03
-0x05
-LOAD M(X), 0x00
-JUMP+ M(X: 0:19), 0X05
-EXIT
+3 0x00 // tamanho do array
+4 0x01 // elemento 1
+2 0x02 // elemento 2
+1 0x03 // elemento 3
+0 0x04 // tmn do array temp 
+0 0x05 // tmn restante do array
+0 0x06 // indice do loop externo
+0 0x07 // indice do loop interno
+0 0x08 // indice do menor elemento
+0 0x09 // valor do menor elemento
+1 0x0A // constante 1
+0x0C
+LOAD M(X), 0X00
+STOR M(X), 0x05
+LOAD M(X), 0x01
+STOR M(X), 0X09
+LOAD M(X), 0X07
+ADD M(X), 0X0A
+STOR M(X), 0X07
+
+
+
+
