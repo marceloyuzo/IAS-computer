@@ -26,3 +26,12 @@ Processador faz um ciclo de busca da primeira instrucao armazenada em PC
 Processador faz um ciclo de execucacao
 Se o endereco de PC nao existir, acabou as instrucoes
 
+LOAD MQ M(X), 0X02
+MUL M(X), 0X03
+STOR M(X), 0X02
+LOAD M(X), 0X03
+ADD M(X), 0X01
+STOR M(X), 0X03
+LOAD M(X), 0X00
+SUB M(X), 0X01
+JUMP+ M(X: 0:19), 0X05

@@ -97,8 +97,6 @@ class IAS:
 
     def cycle_fetch_instruction_right(self):
         # DESCOBRIR COMO SABER SE A ULTIMA INSTRUÇÃO EXECUTADA FOI A ESQUERDA
-        print(self.IR)
-
         if (self.IR in ["JUMP M(X 0:19)", "JUMP M(X 20:39)", "JUMP+ M(X 0:19)", "JUMP+ M(X 20:39)"]):
             self.MAR = self.PC
             self.MBR = self.memory[int(self.MAR, 16)]
@@ -193,6 +191,7 @@ class IAS:
 
     def stor_mx(self):
         self.write_data(self.MAR, str(self.AC), None)
+        self.display_ram()
         return
 
     def load_mq(self):
@@ -249,7 +248,6 @@ class IAS:
             self.jumped = True
         else:
             self.jumped = False
-
 
     def jump_m_right(self):
         if (isinstance(self.memory[int(self.MAR, 16)], tuple)):  
@@ -312,6 +310,7 @@ class IAS:
 
             if self.jumped:
                 if self.IR in ["JUMP+ M(X 0:19)", "JUMP M(X 0:19)"]:
+                    print("TESTE")
                     self.cycle_fetch_instruction_left()
                     self.last_instruction_was_left = True
                     
@@ -321,6 +320,7 @@ class IAS:
 
                 print("REGISTRADORES APOS CICLO DE BUSCA")
                 self.display_registers()
+                input("Pressione Enter para continuar para a próxima instrução...")
                 self.cycle_exec_instruction()
                 print("REGISTRADORES APOS CICLO DE EXECUCAO")
                 self.display_registers()
@@ -335,9 +335,10 @@ class IAS:
 
                 print("REGISTRADORES APOS CICLO DE BUSCA")
                 self.display_registers()
+                input("Pressione Enter para continuar para a próxima instrução...")
                 self.cycle_exec_instruction()
                 print("REGISTRADORES APOS CICLO DE EXECUCAO")
                 self.display_registers()
-
-
+        print("resultado:")
+        self.display_ram()
         return
