@@ -16,7 +16,7 @@ OU:
 
 Mapeamento das variáveis de cada algoritmo na memória RAM (os comentários são acompanhados anteriormente por "//"), apenas os algoritmos de potência e fatorial está funcionando corretamente.
 
-Selection Sort: (NÃO CONSEGUI FAZER FUNCIONAR, mas estava nessa idéia)
+Selection Sort: (NÃO CONSEGUI FAZER FUNCIONAR, mas estava nessa ideia)
 2 0x00 // tamanho do array (originalmente estava 3, mas diminuindo 1 estava percorrendo o array corretamente)
 4 0x01 // primeiro elemento do array
 24 0x02 // segundo elemento do array
