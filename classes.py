@@ -295,7 +295,6 @@ class IAS:
                 self.display_registers()
                 self.display_ram()
                 print('-------------------------------------------------------------------------------------------------------------------------------')
-                input("Pressione Enter para começar o ciclo de execução...")
                 self.jumpedLeft = False
                 self.last_instruction_was_left = True
                 self.cycle_exec_instruction()
@@ -311,7 +310,6 @@ class IAS:
                 print("APÓS CICLO DE BUSCA: ")
                 self.display_registers()
                 self.display_ram()
-                input("Pressione Enter para começar o ciclo de execução...")
                 print('-------------------------------------------------------------------------------------------------------------------------------')
                 self.jumpedRight = False
                 self.last_instruction_was_left = False
@@ -338,7 +336,6 @@ class IAS:
                 print('-------------------------------------------------------------------------------------------------------------------------------')
                 self.last_instruction_was_left = False
 
-            input("Pressione Enter para começar o ciclo de execução...")
             self.cycle_exec_instruction()
             print(f"APÓS CICLO DE EXECUCAÇÃO DA INSTRUÇÃO {self.IR}")
             self.display_registers()
