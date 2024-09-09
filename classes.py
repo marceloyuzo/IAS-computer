@@ -1,27 +1,22 @@
 class IAS:
     def __init__(self, ram_file):
-        # Inicializando os registradores'
-        self.running = True
-        self.last_instruction_was_left = False
-        self.jumped = False
+        # Inicializando os registradores
         self.MAR = None
         self.IR = None
         self.IBR = None
         self.MBR = None
-        self.AC = 0
-        self.MQ = 0
-        self.R = 0
-        self.C = 0
-        self.Z = 0
+        self.AC = None
+        self.MQ = None
+        self.R = None
+        self.C = None
+        self.Z = None
+        # Inicializando a memoria RAM, e colocando a primeira instrução no registrador PC
         self.memory = self.load_memory(ram_file)
 
-        # Percorrendo memoria RAM para inicializar o registrador PC com o endereço da primeira instrução
-        startedInstructions = False
-        for line in self.memory:
-            if (line.startswith('0x') and (not startedInstructions)):
-                startedInstructions = True
-                self.PC = line
-                break
+        self.running = True # Variável para finalizar as instruções
+        self.last_instruction_was_left = False # Variável para saber se a ultima instrução executada foi o da esquerda
+        self.jumpedLeft = False # Variável para saber se ocorreu um salto condicional para a parte esquerda da palavra
+        self.jumpedRight = False # Variável para saber se ocorreu um salto condicional para a parte direita da palavra
 
     def load_memory(self, ram_file):
         memory = []
@@ -33,307 +28,323 @@ class IAS:
             while (i < len(lines)):
                 line = lines[i].strip()
 
-                if (line.startswith('0x') and (not startedInstructions)):
+                # Se a linha for vazia é porque as proximas linhas são para as intruções
+                if (line == ''):
                     startedInstructions = True
-                    memory.append(line)
                     i += 1
                     continue
 
                 if (startedInstructions):
+                    # Se começou a parte das instruções e a linha começa com 0x é porque está indicando o endereço que começa as instruções, então devemos armazenar no registrador PC
+                    if (line.startswith('0x')):
+                        self.PC = line
+                        i += 1
+                        continue
+
+                    # No IAS, as instruções são armazenadas em pares (parte esquerda e direita da palavra), então se existir um par de instruções sobrando, junta em uma tupla e armazena
                     if i + 1 < len(lines):
                         nextLine = lines[i + 1].strip()
                         memory.append((line, nextLine))
                         i += 2
-                    else:
+                    else: # Se não existir um par, complementa com uma instrução vazia None para não quebrar as tuplas
                         memory.append((line, None))
                         i += 1
 
-                else:
+                else: # Se não começou as instruções ainda é porque ainda está na parte das variáveis, e cada variável é armazenada em uma palavra inteira
                     memory.append(line)
                     i += 1
 
         return memory
 
+    # Na operação de leitura da memória, a RAM pega o endereço pelo registador MAR e coloca os dados requisitados no registrador MBR
     def read_data(self, address):
         self.MAR = address
-        self.MBR = self.memory[int(self.MAR, 16)]
-        if(isinstance(self.MBR, tuple)):
-          return self.MBR
-        else:
-          self.MBR = self.MBR.split(' ')[0]
+        self.MBR = self.memory[int(self.MAR, 16)].split(' ')[0].strip()
 
         return self.MBR
 
-    def write_data(self, address, data, field):
+    # Na operação de escrita da memória, a RAM pega o endereço pelo registadro MAR e os dados que vão ser armazenados pelo registrador MBR
+    def write_data(self, address, data, fieldLeft=True):
         self.MAR = address
         self.MBR = data
 
-        # verificando o tipo de escrita, caso o valor seja uma tupla, então é uma escrita de instrução
+        # Verificando o tipo de escrita, caso o valor seja uma tupla, então é uma escrita de instrução
         if (isinstance(self.memory[int(self.MAR, 16)], tuple)):
-            if (field == 0):
+            if (fieldLeft == True): # Armazenando instrução na parte esquerda
                 newLine = (self.MBR, self.memory[int(self.MAR, 16)][1])
 
-            if (field == 1):
+            if (fieldLeft == False): # Armazenando instrução na parte direita
                 newLine = (self.memory[int(self.MAR, 16)][0], self.MBR)
 
             self.memory[int(self.MAR, 16)] = newLine
-        else:
-            self.memory[int(self.MAR, 16)] = self.MBR + '' + self.MAR
-            # talvez chamar uma funcao memoryRam.write_ram para atualizar o arquivo txt, depende se o prof quer
+        else: # Se não for uma tupla, é porque é uma variável então precisa armazenar o dado e o endereço na frente (0 0x00) seguindo o padrão da RAM
+            self.memory[int(self.MAR, 16)] = str(self.MBR) + ' ' + str(self.MAR)
 
+    # No ciclo de busca da instrução esquerda o endereço da proxima palavra (PC) é armazenado no registrador MAR e a palavra requisitada é colocado no MBR
     def cycle_fetch_instruction_left(self):
         self.MAR = self.PC
         self.MBR = self.memory[int(self.MAR, 16)]
 
+        # IAS busca instruções em pares, a primeira parte (0:19) vai para a IR e a segunda (20:39) vai para IBR
         self.IBR = self.MBR[1]
 
-        divider = self.MBR[0].split(',')
-        self.IR = divider[0]
-        self.MAR = divider[1] if len(divider) > 1 else None
+        # Condicional para EXIT pois é uma instrução especial e precisa ser tratado para não quebrar o código
+        if (self.MBR[0] == 'EXIT'):
+            self.IR = self.MBR[0]
+            newPC = int(self.PC, 16) + 1
+            self.PC = f"0x{newPC:02X}"
+            return
+
+        # A primeira parte da palavra (0:19) é divida em instrução (opcode) que é armazenada no IR e endereço que a instrução utiliza que é armazenada em MAR
+        self.IR = self.MBR[0].split('(')[0].strip()
+        self.MAR = self.MBR[0].split('(')[1].strip().split(')')[0].strip()
 
         # INCREMENTO DO PC
         newPC = int(self.PC, 16) + 1
         self.PC = f"0x{newPC:02X}"
 
     def cycle_fetch_instruction_right(self):
-        # DESCOBRIR COMO SABER SE A ULTIMA INSTRUÇÃO EXECUTADA FOI A ESQUERDA
-        if (self.last_instruction_was_left):
-            divider = self.IBR.split(',')
-            self.IR = divider[0]
-            self.MAR = divider[1] if len(divider) > 1 else None
+        # Se a ultima instrução que foi executada for a esquerda e não houve desvio condicional, só puxar a instrução que está armazenada no IBR (que é a segunda parte da palavra)
+        if (self.last_instruction_was_left and (not self.jumpedRight)):
+            if(self.IBR == 'EXIT'): # Tratamento para instrução especial EXIT para não quebrar
+                self.IR = self.IBR
+                return
+
+            self.IR = self.IBR.split('(')[0].strip()
+            self.MAR = self.IBR.split('(')[1].strip().split(')')[0].strip()
         else:
+            # Se chegou aqui é porque houve desvio condicional então temos que buscar uma palavra nova com o endereço que está em PC
             self.MAR = self.PC
             self.MBR = self.memory[int(self.MAR, 16)]
 
-            divider = self.MBR[0].split(',')
-            self.IR = divider[0]
-            self.MAR = divider[1] if len(divider) > 1 else None
+            if(self.MBR[1] == 'EXIT'): # Tratamento para instrução especial EXIT para não quebrar
+                newPC = int(self.PC, 16) + 1
+                self.PC = f"0x{newPC:02X}"
+                return
+
+            self.IR = self.MBR[1].split('(')[0].strip()
+            self.MAR = self.MBR[1].split('(')[1].strip().split(')')[0].strip()
 
             # INCREMENTO DO PC
             newPC = int(self.PC, 16) + 1
             self.PC = f"0x{newPC:02X}"
 
     def cycle_exec_instruction(self):
-        # Se a instrução for de busca
+        # Swith case para cada tipo de instrução que está em IR
         match self.IR:
-            case "LOAD M(X)":
-                self.load_mx()
+            case "LOAD M": # Lê o dado que está no endereço MAR e armazena em AC
+                self.AC = self.read_data(self.MAR)
+                return
 
-            case "LOAD MQ M(X)":
-                self.load_mq_mx()
+            case "LOAD MQ M": # Lê o dado que está no endereço MAR e armazena em MQ
+                self.MQ = self.read_data(self.MAR)
+                return
 
-            case "STOR M(X)":
-                self.stor_mx()
+            case "LOAD MQ": # Carrega o valor de MQ em AC
+                self.AC = self.MQ
+                return
 
-            case "LOAD MQ":
-                self.load_mq()
+            case "LOAD |M": # Lê o dado que está no endereço MAR e armazena o absoluto desse dado em AC
+                self.AC = abs(self.read_data(self.MAR))
+                return
 
-            case "LOAD |M(X)|":
-                self.load_mx_absolute()
+            case "LOAD -M": # Lê o dado que está no endereço MAR e armazena o valor vezes (-1) desse dado em AC
+                dataNegative = int(self.read_data(self.MAR)) * (-1)
+                self.AC = str(dataNegative)
+                return
 
-            case "LOAD -M(X)":
-                self.load_mx_negative()
+            # Existem dois tipos de STOR M, um para armazenar dados e outro para modificar instrução
+            case "STOR M":
+                # Se o endereço que estiver no registrador MAR for do tipo '0x00', então é a escrita de um dado
+                if (len(self.MAR.split(' ')) == 1):
+                    self.write_data(self.MAR, self.AC)
+                else: # Se o endereço que estiver no registrador MAR for do tipo '0x00 8:19' é uma modificação de endereço da instrução
+                    if(self.MAR.split(' ')[1].strip() == '8:19'): # Modificando a parte esquerda da palavra
+                        self.MAR = self.MAR.split(' ')[0].strip()
+                        oldInstruction = self.memory[int(self.MAR, 16)]
 
-            case "ADD M(X)":
-                self.add_mx()
+                        # Se a instrução que vai ser modificada é do tipo JUMP ou STOR tem que ser armazenado diferente pois os endereços indicam se é parte esquerda (0:19) ou direita (20:39)
+                        if (oldInstruction[0].split('(')[0].strip().startswith('JUMP')):
+                            newInstruction = oldInstruction[0].split('(')[0].strip() + '(' + str(self.AC) + ' ' + oldInstruction[0].split('(')[1].split(' ')[1]
+                        elif (oldInstruction[0].split('(')[0].strip().startswith('STOR')):
+                            endTemp = oldInstruction[0].split('(')[1].split(')')[0]
+                            if(len(endTemp.split(' ')) == 1):
+                                newInstruction = oldInstruction[0].split('(')[0].strip() + '(' + str(self.AC) + ')'
+                            else:
+                                newInstruction = oldInstruction[0].split('(')[0].strip() + '(' + str(self.AC) + ' ' + oldInstruction[0].split('(')[1].split(' ')[1]
+                        else:
+                            newInstruction = oldInstruction[0].split('(')[0].strip() + '(' + str(self.AC) + ')'
+                        self.write_data(self.MAR, newInstruction, True)
 
-            case "ADD |M(X)|":
-                self.add_mx_absolute()
+                    elif(self.MAR.split(' ')[1].strip() == '28:39'): # Modificando parte direita da palavra, mesmo tratamento da esquerda
+                        self.MAR = self.MAR.split(' ')[0].strip()
+                        oldInstruction = self.memory[int(self.MAR, 16)]
+                        if (oldInstruction[1].split('(')[0].strip().startswith('JUMP')):
+                            newInstruction = oldInstruction[1].split('(')[0].strip() + '(' + str(self.AC) + oldInstruction[1].split('(')[1].split(' ')[1]
+                        else:
+                            newInstruction = oldInstruction[1].split('(')[0].strip() + '(' + str(self.AC) + ')'
+                        self.write_data(self.MAR, newInstruction, False)
+                    else:
+                        print("Erro execução STOR M")
 
-            case "SUB M(X)":
-                self.sub_mx()
+            case "ADD M": # Lê o dado que está no endereço MAR e soma com o valor do registrador AC e armazena em AC 
+                self.AC = int(self.AC) + int(self.read_data(self.MAR))
+                return
 
-            case "SUB |M(X)|":
-                self.sub_mx_absolute()
+            case "ADD |M": # Lê o dado que está no endereço MAR e soma o valor absoluto desse dado com o valor do registrador AC e armazena em AC 
+                self.AC = int(self.AC) + abs(int(self.read_data(self.MAR)))
+                return
 
-            case "MUL M(X)":
-                self.mul_mx()
+            case "SUB M": # Lê o dado que está no endereço MAR e subtrai esse dado com o valor do registrador AC e armazena em AC 
+                self.AC = int(self.AC) - int(self.read_data(self.MAR))
+                return
 
-            case "DIV M(X)":
-                self.div_mx()
+            case "SUB |M": # Lê o dado que está no endereço MAR e subtrai o valor absoluto desse dado com o valor do registrador AC e armazena em AC 
+                self.AC = int(self.AC) - abs(int(self.read_data(self.MAR)))
+                return
 
-            case "RSH":
-                self.rsh()
+            case "MUL M": # Lê o dado que está no endereço MAR e multiplica pelo valor de MQ, armazena em MQ e AC
+                self.MQ = int(self.MQ) * int(self.read_data(self.MAR))
+                self.AC = self.MQ # De acordo com a documentação do trabalho da unicamp, o IAS armazena tanto em MQ quanto em AC
+                return
 
-            case "LSH":
-                self.lsh()
+            case "DIV M": # Divide o valor de AC pelo dado que está em MAR e armazena em MQ, o resta dessa divisão é armazenada em AC
+                self.MQ = int(self.AC) / int(self.read_data(self.MAR))
+                self.AC = int(self.AC) % int(self.read_data(self.MAR))
+                return
 
-            case "JUMP M(X 0:19)":
-                self.jump_m_left()
+            case "RSH": # Desloca os bits do AC para a direita, ou seja divide por 2
+                self.AC = self.AC / 2
+                return
 
-            case "JUMP M(X 20:39)":
-                self.jump_m_right()
+            case "LSH": # Desloca os bits do AC para a esquerda, ou seja multiplica por 2
+                self.AC = self.AC * 2
+                return
 
-            case "JUMP+ M(X 0:19)":
-                self.jump_plus_m_left()
+            case "JUMP M": # Instrução de salto
+                if(self.MAR.split(' ')[1].strip() == '0:19'): # Salto para a instrução esquerda (0:19) da palavra armazenada em MAR
+                    self.MAR = self.MAR.split(' ')[0].strip()
+                    self.PC = self.MAR
+                    self.jumpedLeft = True
 
-            case "JUMP+ M(X 20:39)":
-                self.jump_plus_m_right()
+                elif(self.MAR.split(' ')[1].strip() == '20:39'): # Salto para a instrução direita (20:39) da palavra armazenada em MAR
+                    self.MAR = self.MAR.split(' ')[0].strip()
+                    self.PC = f"0x{int(self.MAR, 16):02X}"
+                    self.jumpedRight = True
+                else:
+                    print("Error execução JUMP M")
 
-            case "STOR M(X 8:19)":
-                self.stor_m_left()
+            case "JUMP +M": # Instrução de salto condicional
+                if(self.MAR.split(' ')[1].strip() == '0:19'): # Salto para a intrução esquerda (0:19) da palavra armazenada em MAR se AC for maior ou igual a 0
+                    self.MAR = self.MAR.split(' ')[0].strip()
+                    if (int(self.AC) >= 0):
+                        self.PC = f"0x{int(self.MAR, 16):02X}"
+                        self.jumpedLeft = True
+                    else:
+                        self.jumpedLeft = False
+                elif(self.MAR.split(' ')[1].strip() == '20:39'): # Salto para a intrução direita (20:39) da palavra armazenada em MAR se AC for maior ou igual a 0
+                    self.MAR = self.MAR.split(' ')[0].strip()
+                    if (int(self.AC) >= 0):
+                        self.PC = f"0x{int(self.MAR, 16):02X}"
+                        self.jumpedRight = True
+                    else:
+                        self.jumpedRight = False
+                else:
+                    print("Error execução JUMP+ M")
 
-            case "STOR M(X 28:39)":
-                self.stor_m_right()
-
-            case "EXIT":
+            case "EXIT": # Instrução especial para encerrar o IAS.
                 self.running = False
+                
         return
 
-    # INSTRUÇÕES DE TRANSFERÊNCIA DE DADOS
-    def load_mx(self):
-        self.AC = self.read_data(self.MAR)
-        return
-
-    def load_mq_mx(self):
-        self.MQ = self.read_data(self.MAR)
-        return
-
-    def stor_mx(self):
-        self.write_data(self.MAR, str(self.AC), None)
-        self.display_ram()
-        return
-
-    def load_mq(self):
-        self.AC = self.MQ
-        return
-
-    def load_mx_absolute(self):
-        self.AC = abs(self.read_data(self.MAR))
-        return
-
-    def load_mx_negative(self):
-        dataNegative = int(self.read_data(self.MAR)) * (-1)
-        self.AC = str(dataNegative)
-        return
-
-    # INSTRUÇÕES ARITMÉTICAS
-
-    def add_mx(self):
-        self.AC = int(self.AC) + int(self.read_data(self.MAR))
-        return
-
-    def add_mx_absolute(self):
-        self.AC = int(self.AC) + abs(int(self.read_data(self.MAR)))
-        return
-
-    def sub_mx(self):
-        self.AC = int(self.AC) - int(self.read_data(self.MAR))
-        return
-
-    def sub_mx_absolute(self):
-        self.AC = int(self.AC) - abs(int(self.read_data(self.MAR)))
-        return
-
-    def mul_mx(self):
-        self.AC = int(self.MQ) * int(self.read_data(self.MAR))
-        return
-
-    def div_mx(self):
-        self.MQ = int(self.AC) / int(self.read_data(self.MAR))
-        self.AC = int(self.AC) % int(self.read_data(self.MAR))
-        return
-
-    def rsh(self):
-        return
-
-    def lsh(self):
-        return
-
-    # INSTRUÇÕES DE SALTO
-
-    def jump_m_left(self):
-        if (isinstance(self.memory[int(self.MAR, 16)], tuple)):  
-            self.PC = self.MAR
-            self.jumped = True
-        else:
-            self.jumped = False
-
-    def jump_m_right(self):
-        if (isinstance(self.memory[int(self.MAR, 16)], tuple)):  
-            self.PC = self.MAR
-            self.jumped = True
-        else:
-            self.jumped = False
-
-    def jump_plus_m_left(self):
-        if (int(self.AC) >= 0):
-            self.jump_m_left()
-        else:
-            self.jumped = False
-
-    def jump_plus_m_right(self):
-        if (int(self.AC) >= 0):
-            self.jump_m_right()
-        else:
-            self.jumped = False
-
-    # INSTRUÇÕES DE MODIFICAÇÃO DE ENDEREÇO
-
-    def stor_m_left(self):
-        return
-
-    def stor_m_right(self):
-        return
-
-    # FUNÇÕES PARA DISPLAY
-
+    # Função para mostrar a memoria RAM
     def display_ram(self):
-        print(self.memory)
+        print("Memória RAM:")
+        for linha in self.memory:
+            print(linha)
 
+    # Função para mostrar os registradores
     def display_registers(self):
         print('Registadores da Unidade de Controle:')
-        print('MAR: ', self.MAR)
+        print('PC: ', self.PC)
         print('IR: ', self.IR)
-        print('IBR: ', self.IBR)
-        print('PC: ', self.PC, '\n')
+        print('MAR: ', self.MAR)
+        print('MBR: ', self.MBR)
+        print('IBR: ', self.IBR, '\n')
 
         print('Registradores da ULA(Unidade Lógica e Aritmética): \b')
-        print('MBR: ', self.MBR)
         print('AC: ', self.AC)
         print('MQ: ', self.MQ)
         print('R: ', self.R)
         print('C: ', self.C)
         print('Z: ', self.Z, '\n')
-        print('------------------------------------------')
+        print('-------------------------------------------------------------------------------------------------------------------------------')
 
     def run(self):
         print("Inicialização do IAS: ")
         self.display_registers()
         self.display_ram()
+        print('-------------------------------------------------------------------------------------------------------------------------------')
         while self.running:
-            input("Pressione Enter para continuar para a próxima instrução...")
-            if self.jumped:
-                print("TEste")
-                if self.IR in ["JUMP+ M(X 0:19)", "JUMP M(X 0:19)"]:
-                    self.cycle_fetch_instruction_left()
-                    self.last_instruction_was_left = True
-                    
-                else:
-                    self.cycle_fetch_instruction_right()
-                    self.last_instruction_was_left = False
+            input("Pressione Enter para começar o ciclo de busca...")
 
-                print("REGISTRADORES APOS CICLO DE BUSCA")
+            # Se jumpedLeft for True então executa ciclo de busca esquerda, executa a instrução, coloca last_instruction_was_left como verdadeiro e jumpedLeft desativa
+            if(self.jumpedLeft):
+                self.cycle_fetch_instruction_left()
+                print("APÓS CICLO DE BUSCA: ")
                 self.display_registers()
-                input("Pressione Enter para continuar para a próxima instrução...")
+                self.display_ram()
+                print('-------------------------------------------------------------------------------------------------------------------------------')
+                input("Pressione Enter para começar o ciclo de execução...")
+                self.jumpedLeft = False
+                self.last_instruction_was_left = True
                 self.cycle_exec_instruction()
-                print("REGISTRADORES APOS CICLO DE EXECUCAO")
+                print(f"APÓS CICLO DE EXECUCAÇÃO DA INSTRUÇÃO {self.IR}")
                 self.display_registers()
-                self.jumped = False
-            else:
-                if self.last_instruction_was_left:
-                    self.cycle_fetch_instruction_right()
-                    self.last_instruction_was_left = False
-                else:
-                    self.cycle_fetch_instruction_left()
-                    self.last_instruction_was_left = True
+                self.display_ram()
+                print('-------------------------------------------------------------------------------------------------------------------------------')
+                continue
 
-                print("REGISTRADORES APOS CICLO DE BUSCA")
+            # Se jumpedRight for True então executa ciclo de busca direita, executa a instrução, jumpedRight desativa
+            if(self.jumpedRight):
+                self.cycle_fetch_instruction_right()
+                print("APÓS CICLO DE BUSCA: ")
                 self.display_registers()
-                input("Pressione Enter para continuar para a próxima instrução...")
+                self.display_ram()
+                input("Pressione Enter para começar o ciclo de execução...")
+                print('-------------------------------------------------------------------------------------------------------------------------------')
+                self.jumpedRight = False
+                self.last_instruction_was_left = False
                 self.cycle_exec_instruction()
-                print("REGISTRADORES APOS CICLO DE EXECUCAO")
+                print(f"APÓS CICLO DE EXECUCAÇÃO DA INSTRUÇÃO {self.IR}")
                 self.display_registers()
-        print("resultado:")
+                self.display_ram()
+                print('-------------------------------------------------------------------------------------------------------------------------------')
+                continue
+
+            # Se last_instruction_was_left for falso, então executa o ciclo de busca esquerda
+            if(not self.last_instruction_was_left):
+                self.cycle_fetch_instruction_left()
+                print("APÓS CICLO DE BUSCA: ")
+                self.display_registers()
+                self.display_ram()
+                print('-------------------------------------------------------------------------------------------------------------------------------')
+                self.last_instruction_was_left = True
+            else: # Se last_instruction_was_left for verdadeiro, então executa o ciclo de busca direita
+                self.cycle_fetch_instruction_right()
+                print("APÓS CICLO DE BUSCA: ")
+                self.display_registers()
+                self.display_ram()
+                print('-------------------------------------------------------------------------------------------------------------------------------')
+                self.last_instruction_was_left = False
+
+            input("Pressione Enter para começar o ciclo de execução...")
+            self.cycle_exec_instruction()
+            print(f"APÓS CICLO DE EXECUCAÇÃO DA INSTRUÇÃO {self.IR}")
+            self.display_registers()
+            self.display_ram()
+            print('-------------------------------------------------------------------------------------------------------------------------------')
+
+        print("Memória RAM Final:")
         self.display_ram()
         return
