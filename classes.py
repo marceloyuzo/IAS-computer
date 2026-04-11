@@ -304,7 +304,6 @@ class IAS:
         while self.running:
             input("Pressione Enter para continuar para a próxima instrução...")
             if self.jumped:
-                print("TEste")
                 if self.IR in ["JUMP+ M(X 0:19)", "JUMP M(X 0:19)"]:
                     self.cycle_fetch_instruction_left()
                     self.last_instruction_was_left = True

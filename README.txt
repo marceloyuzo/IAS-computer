@@ -35,3 +35,219 @@ STOR M(X), 0X03
 LOAD M(X), 0X00
 SUB M(X), 0X01
 JUMP+ M(X: 0:19), 0X05
+
+Nesse arquivo constam as descrições das memórias para se realizar simulações com os arquivos-teste feitos, bem como
+observações para a simulação com arquivos externos.
+
+Deve-se garantir que para todo arquivo que será simulado ele atenda aos seguintes requisitos:
+
+1. O arquivo deve, obrigatoriamente, possuir uma seção declarando a quantidade de ciclos de clock para as instruções 
+logo em seu início, um exemplo está a seguir:
+
+/*
+loadm:11
+loadmm:1
+stor:2
+load:3
+load-m:4
+load|m:5
+load-|m:6 
+jump:7
+jump+:8
+add:9
+add|:10
+sub:11
+sub|:12
+mul:13
+div:14
+lsh:15
+rsh:16
+storm:17
+*/
+
+2. Os arquivos-teste providenciados devem ter as suas variáveis respeitadas de acordo com as tabelas abaixo, incluindo valores de memória que representam
+espaços em branco [e.g, a ordenação pode ser feito com um vetor de qualquer tamanho, porém alterações nele necessitariam re-calcular todos
+os endereços de modificação e de jumps, devido a natureza das instruções IAS].
+
+3. Os arquivos-teste devem ser executados com o PC inicial conforme indicado após às suas respectivas tabelas
+Exemplo:
+Windows: [programa].exe -p collatz.ias -i 21
+Linux: ./[programa] -p collatz.ias -i 21
+
+4. Para programas de teste externos, devem ser observados alguns detalhes:
+
+4.1: Deve-se garantir que instruções que são diferenciadas por seus sufixos (e.g, STOR e JUMP/JUMP+) não possuam espaços nem caracteres estranhos após sua escrita.
+
+4.2: Deve-se garantir que as intruções estejam escritas corretamente de modo igual aos arquivos de teste disponibilizados.
+
+4.3: Deve-se garantir que o programa, de maneira obrigatória, atinja uma instrução EXIT ao seu término, caso contrário, a simulação continuará até que o valor de PC atinja o limite de memória.
+
+----------- Disposições de memórias dos arquivos de testes --------
+
+Conjectura de collatz
+Ordem da memória
+Endereço | Variável | Valor que deve estar no começo
+00       | i        | qualquer valor
+01       | inicio_v | 6
+02       | um       | 1
+03       | dois     | 2
+04       | tres     | 3
+05       | quatorze | 14
+06       | v_inicial| Valor que se quer usar como início da sequência (entrada)
+07-20    | v1-v14   | Valores que serão calculados pelo algoritmo (saída)
+21+      | instruções...
+PC Inicial = 21
+
+-------------------------------------------------------------------
+
+Ordenação por seleção
+
+Ordem da memória
+Endereço | Variável | Valor que deve estar no começo
+00       | i        | qualquer valor
+01       | j        | qualquer valor
+02       | min_idx  | qualquer valor
+03       | um       | 1
+04       | init_vet | 7
+05       | temp     | qualquer valor
+06       | tamanho  | O número de elementos do vetor
+07-24    | vetor    | Elementos do vetor
+25+      | Instruções...
+PC Inicial = 25
+
+-------------------------------------------------------------------
+
+Multiplicação de Matrizes
+
+Ordem da memória
+Endereço | Variável | Valor que deve estar no começo
+00       | M        | Número de linhas de A (A é MxN)
+01       | N        | Número de colunas de A e de linhas de B (B é NxP)
+02       | P        | Número de colunas de B (resultante C é MxP)
+03       | init_a   | 11
+04       | init_b   | Qualquer valor (será calculado pelo algoritmo)
+05       | init_c   | Qualquer valor (será calculado pelo algoritmo)
+06       | i        | Qualquer valor
+07       | j        | Qualquer valor
+08       | k        | Qualquer valor
+09       | zero     | 0    
+10       | um       | 1
+11-49    | matrizes | Os valores das matrizes inseridos sequencialmente
+50+      | Instruções...
+PC Inicial = 50
+
+-------------------------------------------------------------------
+
+Fatorial
+Ordem da memória
+Endereço | Variável | Valor que deve estar no começo
+00       | i        | valor 1, usado para o decremento
+01       | n        | valor a ser calculado o fatorial (vai sendo decrementado cada iteração)
+02       | resultado| qualquer valor. Guarda o resultado parcial do cálculo do fatorial. No fim da execução, tem o resultado final
+03+      | Instruções...
+PC Inicial = 3
+
+-------------------------------------------------------------------
+
+Busca Binária
+Ordem da memória
+Endereço | Variável | Valor que deve estar no começo
+00       | flag     | valor 1. Se o algoritmo não encontrar o número procurado, a flag assume o valor 0
+01       | mid      | qualquer valor. Índice do meio, calculado para pegar o elemento central do vetor
+02       | temp1    | qualquer valor
+03       | temp2    | qualquer valor
+04       | esq      | posição na memória do primeiro elemento do vetor
+05       | dir      | posição na memória do último elemento do vetor
+06       | n        | número a ser buscado
+07       | vetor[0] | qualquer número, desde que o vetor seja ordenado
+08       | vetor[1] | qualquer número, desde que o vetor seja ordenado
+09       | vetor[2] | qualquer número, desde que o vetor seja ordenado
+10       | vetor[3] | qualquer número, desde que o vetor seja ordenado
+11       | vetor[4] | qualquer número, desde que o vetor seja ordenado
+12       | vetor[5] | qualquer número, desde que o vetor seja ordenado
+13       | vetor[6] | qualquer número, desde que o vetor seja ordenado
+14       | vetor[7] | qualquer número, desde que o vetor seja ordenado
+15       | vetor[8] | qualquer número, desde que o vetor seja ordenado
+16       | vetor[9] | qualquer número, desde que o vetor seja ordenado
+17       | vetor[10]| qualquer número, desde que o vetor seja ordenado
+18       | vetor[11]| qualquer número, desde que o vetor seja ordenado
+19+      | Instruções...
+PC Inicial = 19
+
+
+*******************************************************************
+
+-------- Memória esperada dos arquivos de testes unitparios -------
+
+teste_laco:
+            15
+            15
+            1
+            0
+            ...
+
+-------------------------------------------------------------------
+
+teste_bitshift:
+            8
+            8
+            8
+            8
+            3
+            14
+            ...
+
+-------------------------------------------------------------------
+
+teste-jumps:
+            1
+            6
+            6
+            6
+            ...
+
+-------------------------------------------------------------------
+
+teste-modulos:
+            2
+            2
+            1
+            1
+            -1
+            ...
+
+-------------------------------------------------------------------
+
+teste-mq_mul_div:
+            14
+            2
+            7
+            0
+            1
+            ...
+
+-------------------------------------------------------------------
+
+teste-stor:
+            1
+            987
+            2
+            2
+            ...
+
+-------------------------------------------------------------------
+
+teste-stor2:
+            2
+            2
+            1
+            2
+            ...
+
+-------------------------------------------------------------------
+
+teste-subtracao:
+            10
+            15
+            -5
+            ...
